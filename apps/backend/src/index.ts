@@ -82,9 +82,10 @@ async function main() {
     void runInboxReconciliation();
   }, config.inboxSyncPollMs);
 
-  const server = ctx.app.listen(config.port, () => {
+  const server = ctx.app.listen(config.port, '0.0.0.0', () => {
     logger.info('Outreach Engine server started', {
       port: config.port,
+      host: '0.0.0.0',
       nodeEnv: config.nodeEnv,
       databasePath: config.databasePath,
     });
