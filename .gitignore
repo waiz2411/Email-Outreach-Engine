@@ -1,0 +1,29 @@
+# Dependencies & builds
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Persistent local data & SQLite files
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+whatsapp-auth/
+
+# Logs & test artifacts
+logs/
+*.log
+playwright-report/
+test-results/
+coverage/
+.DS_Store
+Thumbs.db

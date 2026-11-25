@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: outreach-engine
+    runtime: node
+    plan: starter
+    region: oregon
+    numInstances: 1
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    disk:
+      name: outreach-engine-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATA_DIR
+        value: /var/data
+      - key: DATABASE_PATH
+        value: /var/data/outreach-engine.db
+      - key: DATABASE_URL
+        value: file:/var/data/outreach-engine.db
+      - key: SESSION_TTL_HOURS
+        value: 168
+      - key: MICROSOFT_TENANT_ID
+        value: common
+      - key: SENDING_ENGINE_POLL_MS
+        value: 5000
+      - key: INBOX_SYNC_POLL_MS
+        value: 60000
+      - key: WHATSAPP_AUTO_INIT
+        value: "true"
+      - key: APP_BASE_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: TRACKING_SECRET
+        generateValue: true
+      - key: MICROSOFT_CLIENT_ID
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET
+        sync: false
+      - key: MICROSOFT_REDIRECT_URI
+        sync: false

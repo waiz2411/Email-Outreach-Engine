@@ -1,0 +1,419 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     Session[]
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  csrfSecret String
+  userId     String
+  user       AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress  String?
+  userAgent  String?
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model SystemSettings {
+  id                       String   @id @default("default")
+  globalPaused             Boolean  @default(false)
+  testMode                 Boolean  @default(false)
+  testModeRecipientEmail   String?
+  openTrackingEnabled      Boolean  @default(true)
+  clickTrackingEnabled     Boolean  @default(true)
+  unsubscribeFooterEnabled Boolean  @default(true)
+  maxCampaignSize          Int      @default(5000)
+  maxSendRetries           Int      @default(3)
+  publicBaseUrl            String?
+  updatedAt                DateTime @updatedAt
+}
+
+model OAuthState {
+  id                    String   @id @default(cuid())
+  state                 String   @unique
+  codeVerifierEncrypted String
+  redirectTo            String?
+  expiresAt             DateTime
+  createdAt             DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model OutlookAccount {
+  id                           String                    @id @default(cuid())
+  email                        String                    @unique
+  displayName                  String?
+  microsoftUserId              String?
+  tenantId                     String?
+  accountType                  String                    @default("UNKNOWN") // PERSONAL | WORK_OR_SCHOOL | UNKNOWN
+  connectionStatus             String                    @default("CONNECTED") // CONNECTED | REAUTH_REQUIRED | DISCONNECTED | ERROR
+  authorizationStatus          String                    @default("AUTHORIZED") // AUTHORIZED | EXPIRED | REVOKED | PENDING_ADMIN_CONSENT | DISCONNECTED
+  encryptedAccessToken         String?
+  encryptedRefreshToken        String?
+  tokenExpiresAt               DateTime?
+  scopes                       String?
+  lastError                    String?
+  isPaused                     Boolean                   @default(false)
+  dailySendLimit               Int                       @default(50)
+  minDelayMinutes              Int                       @default(15)
+  maxDelayMinutes              Int                       @default(25)
+  scheduleStartTime            String                    @default("09:00")
+  scheduleEndTime              String                    @default("17:00")
+  timezone                     String                    @default("UTC")
+  allowedWeekdays              String                    @default("[1,2,3,4,5]")
+  signatureHtml                String?
+  signatureEnabled             Boolean                   @default(false)
+  whatsappNotificationsEnabled Boolean                   @default(true)
+  nextEligibleSendAt           DateTime?
+  lastActivityAt               DateTime?
+  graphSubscriptionId          String?
+  graphSubscriptionExpiresAt   DateTime?
+  graphClientStateHash         String?
+  inboxDeltaLink               String?
+  lastInboxSyncAt              DateTime?
+  createdAt                    DateTime                  @default(now())
+  updatedAt                    DateTime                  @updatedAt
+  dailyCounters                AccountDailyCounter[]
+  importBatches                LeadImportBatch[]
+  leads                        Lead[]
+  campaigns                    Campaign[]
+  sendingJobs                  SendingJob[]
+  emailMessages                EmailMessage[]
+  emailEvents                  EmailEvent[]
+  incomingEmails               IncomingEmail[]
+  whatsappNotifications        WhatsAppNotificationJob[]
+}
+
+model AccountDailyCounter {
+  id               String         @id @default(cuid())
+  outlookAccountId String
+  outlookAccount   OutlookAccount @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  dateKey          String
+  sentCount        Int            @default(0)
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([outlookAccountId, dateKey])
+  @@index([dateKey])
+}
+
+model LeadImportBatch {
+  id                    String         @id @default(cuid())
+  outlookAccountId      String
+  outlookAccount        OutlookAccount @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  filename              String
+  fileType              String // CSV | XLSX
+  totalRows             Int
+  validRows             Int
+  invalidRows           Int
+  duplicateRows         Int
+  importedCount         Int            @default(0)
+  duplicateResolution   String? // SKIP | UPDATE
+  invalidRowsReportJson String?
+  createdAt             DateTime       @default(now())
+  leads                 Lead[]
+
+  @@index([outlookAccountId, createdAt])
+}
+
+model Lead {
+  id               String           @id @default(cuid())
+  outlookAccountId String
+  outlookAccount   OutlookAccount   @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  campaignId       String?
+  campaign         Campaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  importBatchId    String?
+  importBatch      LeadImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  email            String
+  firstName        String?
+  lastName         String?
+  company          String?
+  website          String?
+  phone            String?
+  campaignNameHint String?
+  subject          String
+  body             String
+  isHtmlBody       Boolean          @default(false)
+  customFieldsJson String           @default("{}")
+  status           String           @default("VALIDATED") // IMPORTED | VALIDATED | SCHEDULED | SENDING | SENT | DELIVERED | BOUNCED | FAILED | REPLIED | UNSUBSCRIBED | SUPPRESSED
+  deliveryStatus   String           @default("NONE") // NONE | SENT | DELIVERED | DELIVERY_UNKNOWN | BOUNCED | FAILED
+  bounceType       String           @default("NONE") // NONE | HARD | SOFT | UNKNOWN
+  openCount        Int              @default(0)
+  clickCount       Int              @default(0)
+  replied          Boolean          @default(false)
+  unsubscribed     Boolean          @default(false)
+  lastAttemptedAt  DateTime?
+  lastSentAt       DateTime?
+  lastReplyAt      DateTime?
+  errorMessage     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  sendingJobs      SendingJob[]
+  emailMessages    EmailMessage[]
+  trackingLinks    TrackingLink[]
+  emailEvents      EmailEvent[]
+  incomingMatches  IncomingEmail[]
+
+  @@index([outlookAccountId, email])
+  @@index([outlookAccountId, status])
+  @@index([campaignId, status])
+}
+
+model Campaign {
+  id                 String          @id @default(cuid())
+  name               String
+  outlookAccountId   String
+  outlookAccount     OutlookAccount  @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  status             String          @default("DRAFT") // DRAFT | ACTIVE | PAUSED | STOPPED | COMPLETED
+  startDate          DateTime?
+  endDate            DateTime?
+  confirmedFirstSend Boolean         @default(false)
+  isTestMode         Boolean         @default(false)
+  useAccountDefaults Boolean         @default(true)
+  dailyLimit         Int?
+  minDelayMinutes    Int?
+  maxDelayMinutes    Int?
+  scheduleStartTime  String?
+  scheduleEndTime    String?
+  timezone           String?
+  allowedWeekdays    String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  leads              Lead[]
+  sendingJobs        SendingJob[]
+  emailMessages      EmailMessage[]
+  trackingLinks      TrackingLink[]
+  emailEvents        EmailEvent[]
+  incomingMatches    IncomingEmail[]
+
+  @@index([outlookAccountId, status])
+  @@index([status])
+}
+
+model SendingJob {
+  id               String         @id @default(cuid())
+  campaignId       String
+  campaign         Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId           String
+  lead             Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  outlookAccountId String
+  outlookAccount   OutlookAccount @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  recipientEmail   String
+  idempotencyKey   String         @unique
+  status           String         @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED | CANCELLED | UNCERTAIN
+  scheduledFor     DateTime       @default(now())
+  attempts         Int            @default(0)
+  maxAttempts      Int            @default(3)
+  lockedAt         DateTime?
+  lockedBy         String?
+  lastError        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  emailMessage     EmailMessage?
+
+  @@index([status, scheduledFor])
+  @@index([campaignId, status])
+  @@index([outlookAccountId, status])
+}
+
+model EmailMessage {
+  id                   String          @id @default(cuid())
+  sendingJobId         String?         @unique
+  sendingJob           SendingJob?     @relation(fields: [sendingJobId], references: [id], onDelete: SetNull)
+  outlookAccountId     String
+  outlookAccount       OutlookAccount  @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  campaignId           String?
+  campaign             Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  leadId               String?
+  lead                 Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  recipientEmail       String
+  subject              String
+  renderedBodyPreview  String?
+  isTestEmail          Boolean         @default(false)
+  status               String          @default("QUEUED") // QUEUED | SENDING | SENT | DELIVERED | DELIVERY_UNKNOWN | BOUNCED | FAILED | OPENED | CLICKED | REPLIED
+  deliveryStatus       String          @default("QUEUED") // QUEUED | SENDING | SENT | CONFIRMED_DELIVERED | DELIVERY_UNKNOWN | BOUNCED | FAILED
+  deliverySource       String          @default("NONE") // NONE | PROVIDER_CONFIRMED | NO_BOUNCE_INFERRED
+  bounceType           String          @default("NONE") // NONE | HARD | SOFT | UNKNOWN
+  bounceReason         String?
+  graphDraftId         String?
+  graphMessageId       String?
+  internetMessageId    String?
+  conversationId       String?
+  correlationId        String          @unique
+  providerResponseCode Int?
+  providerResponseText String?
+  errorMessage         String?
+  sentAt               DateTime?
+  deliveredAt          DateTime?
+  bouncedAt            DateTime?
+  firstOpenedAt        DateTime?
+  firstClickedAt       DateTime?
+  repliedAt            DateTime?
+  openCount            Int             @default(0)
+  clickCount           Int             @default(0)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  trackingLinks        TrackingLink[]
+  emailEvents          EmailEvent[]
+  incomingReplies      IncomingEmail[]
+
+  @@index([outlookAccountId, sentAt])
+  @@index([campaignId, status])
+  @@index([leadId])
+  @@index([recipientEmail])
+  @@index([conversationId])
+  @@index([internetMessageId])
+}
+
+model TrackingLink {
+  id             String       @id @default(cuid())
+  token          String       @unique
+  emailMessageId String
+  emailMessage   EmailMessage @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+  leadId         String?
+  lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  campaignId     String?
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  destinationUrl String
+  createdAt      DateTime     @default(now())
+
+  @@index([emailMessageId])
+}
+
+model EmailEvent {
+  id               String         @id @default(cuid())
+  emailMessageId   String?
+  emailMessage     EmailMessage?  @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  outlookAccountId String
+  outlookAccount   OutlookAccount @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  campaignId       String?
+  campaign         Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  leadId           String?
+  lead             Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  eventType        String
+  metadataJson     String?
+  ipAddress        String?
+  userAgent        String?
+  occurredAt       DateTime       @default(now())
+
+  @@index([outlookAccountId, occurredAt])
+  @@index([campaignId, eventType])
+  @@index([emailMessageId])
+}
+
+model IncomingEmail {
+  id                    String                    @id @default(cuid())
+  outlookAccountId      String
+  outlookAccount        OutlookAccount            @relation(fields: [outlookAccountId], references: [id], onDelete: Cascade)
+  graphMessageId        String
+  internetMessageId     String?
+  conversationId        String?
+  inReplyTo             String?
+  senderName            String?
+  senderEmail           String
+  subject               String
+  bodyPreview           String?
+  receivedAt            DateTime
+  isBounceNdr           Boolean                   @default(false)
+  isCampaignReply       Boolean                   @default(false)
+  matchedCampaignId     String?
+  matchedCampaign       Campaign?                 @relation(fields: [matchedCampaignId], references: [id], onDelete: SetNull)
+  matchedLeadId         String?
+  matchedLead           Lead?                     @relation(fields: [matchedLeadId], references: [id], onDelete: SetNull)
+  matchedEmailMessageId String?
+  matchedEmailMessage   EmailMessage?             @relation(fields: [matchedEmailMessageId], references: [id], onDelete: SetNull)
+  createdAt             DateTime                  @default(now())
+  whatsappNotifications WhatsAppNotificationJob[]
+
+  @@unique([outlookAccountId, graphMessageId])
+  @@index([outlookAccountId, receivedAt])
+  @@index([conversationId])
+}
+
+model SuppressionEntry {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  reason          String // HARD_BOUNCE | UNSUBSCRIBED | MANUAL | COMPLAINT
+  sourceAccountId String?
+  sourceLeadId    String?
+  notes           String?
+  createdAt       DateTime @default(now())
+}
+
+model WhatsAppConfig {
+  id                   String    @id @default("default")
+  connectionStatus     String    @default("DISCONNECTED") // DISCONNECTED | INITIALIZING | QR_READY | CONNECTED | RECONNECTING | LOGGED_OUT | ERROR
+  linkedPhoneNumber    String?
+  recipientPhoneNumber String?
+  lastConnectedAt      DateTime?
+  lastNotificationAt   DateTime?
+  lastError            String?
+  includeBodyPreview   Boolean   @default(false)
+  notifyNewEmail       Boolean   @default(true)
+  notifyReply          Boolean   @default(true)
+  notifyCampaignComplete Boolean @default(true)
+  notifySendError      Boolean   @default(true)
+  notifyWhatsAppError  Boolean   @default(true)
+  updatedAt            DateTime  @updatedAt
+}
+
+model WhatsAppAuthEntry {
+  key            String   @id
+  encryptedValue String
+  updatedAt      DateTime @updatedAt
+}
+
+model WhatsAppNotificationJob {
+  id                String          @id @default(cuid())
+  dedupeKey         String          @unique
+  eventType         String // NEW_EMAIL | OUTREACH_REPLY | CAMPAIGN_COMPLETE | SEND_ERROR | WHATSAPP_ERROR | TEST
+  outlookAccountId  String?
+  outlookAccount    OutlookAccount? @relation(fields: [outlookAccountId], references: [id], onDelete: SetNull)
+  incomingEmailId   String?
+  incomingEmail     IncomingEmail?  @relation(fields: [incomingEmailId], references: [id], onDelete: SetNull)
+  recipientPhone    String
+  messageText       String
+  status            String          @default("PENDING") // PENDING | SENDING | SENT | DELIVERED | FAILED | RETRYING
+  providerMessageId String?
+  attempts          Int             @default(0)
+  maxAttempts       Int             @default(5)
+  nextRetryAt       DateTime?
+  lastError         String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String?
+  detailsJson String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
